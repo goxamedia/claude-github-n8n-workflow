@@ -1,0 +1,212 @@
+{
+  "name": "Claude Code -> GitHub -> n8n: changelog for every new commit (no login)",
+  "nodes": [
+    {
+      "id": "a1",
+      "name": "Every 2 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a2",
+      "name": "Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Edit these values for your own PUBLIC repository. No GitHub login or token is needed.\nreturn [{ json: { owner: 'YOUR_GITHUB_USERNAME', repo: 'YOUR_REPO_NAME', branch: 'main' } }];"
+      }
+    },
+    {
+      "id": "a3",
+      "name": "Latest commit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $json.owner }}/{{ $json.repo }}/commits/{{ $json.branch }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a4",
+      "name": "New commit?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Remembers the last commit it saw (n8n saves this between runs of the ACTIVE workflow).\n// First run: just remember the current commit. Later runs: continue only when a new commit arrived.\nconst data = $getWorkflowStaticData('global');\nconst c = $input.first().json;\nconst settings = $('Settings').first().json;\nif (!c.sha) throw new Error('GitHub did not return a commit: ' + JSON.stringify(c).slice(0, 200));\ndata.repoName = `${settings.owner}/${settings.repo}`;\nif (!data.lastSha) { data.lastSha = c.sha; return []; }\nif (data.lastSha === c.sha) return [];\ndata.lastSha = c.sha;\nconst message = c.commit.message || '';\nif (message.includes('[skip changelog]')) return [];\nreturn [{ json: {\n  ...settings,\n  sha: c.sha,\n  shortSha: c.sha.slice(0, 7),\n  message,\n  author: (c.commit.author || {}).name || '',\n  date: (c.commit.author || {}).date || '',\n  url: c.html_url,\n  files: (c.files || []).map(f => ({ name: f.filename, status: f.status, additions: f.additions, deletions: f.deletions })),\n} }];"
+      }
+    },
+    {
+      "id": "a5",
+      "name": "Write release notes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Turns the commit into release notes and adds them to the changelog n8n keeps (newest first, last 20).\nconst data = $getWorkflowStaticData('global');\nconst c = $input.first().json;\nconst [title, ...rest] = c.message.split('\\n');\nconst entry = {\n  title,\n  details: rest.join('\\n').trim(),\n  date: c.date,\n  commit: c.shortSha,\n  url: c.url,\n  author: c.author,\n  files: c.files,\n  publishedAt: new Date().toISOString(),\n};\ndata.changelog = [entry, ...(data.changelog || [])].slice(0, 20);\nreturn [{ json: entry }];"
+      }
+    },
+    {
+      "id": "b1",
+      "name": "Changelog page",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "path": "changelog",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "5d0f6a52-7c8e-4b1a-9f3e-0c2b7d4e1a90"
+    },
+    {
+      "id": "b3",
+      "name": "Build page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// Builds the public changelog page from what n8n saved. Anyone with the link can read it, no login.\nconst data = $getWorkflowStaticData('global');\nconst esc = t => String(t ?? '').replace(/[&<>\"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[ch]));\nconst items = (data.changelog || []).map(e => `\n  <article>\n    <h2>${esc(e.title)}</h2>\n    <p class=\"meta\">${esc(e.date.slice(0, 16).replace('T', ' '))} UTC &middot; commit <a href=\"${esc(e.url)}\">${esc(e.commit)}</a> &middot; ${esc(e.author)}</p>\n    ${e.details ? `<p>${esc(e.details)}</p>` : ''}\n    <ul>${e.files.map(f => `<li><code>${esc(f.name)}</code> ${esc(f.status)} <span class=\"add\">+${f.additions}</span> <span class=\"del\">-${f.deletions}</span></li>`).join('')}</ul>\n  </article>`).join('') || '<p class=\"meta\">No changes yet. Push a commit and this page updates by itself.</p>';\nconst html = `<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Changelog - ${esc(data.repoName)}</title>\n<style>\n:root{--ink:#111111;--graphite:#262626;--bone:#F3EFE7;--gray:#A7A29A;--lime:#B7F34A}\nbody{margin:0;background:var(--ink);color:var(--bone);font-family:Inter,system-ui,-apple-system,\"Segoe UI\",sans-serif;display:flex;justify-content:center;padding:40px 16px}\nmain{width:100%;max-width:640px}h1{font-size:28px;margin:0 0 4px}.meta{color:var(--gray);font-size:14px}\narticle{background:var(--graphite);border-radius:12px;padding:18px 20px;margin-top:16px}h2{font-size:20px;margin:0 0 6px}\na{color:var(--bone)}code{font-family:\"JetBrains Mono\",ui-monospace,monospace;font-size:13px}ul{padding-left:18px;margin:10px 0 0}\n.add{color:var(--lime)}.del{color:var(--gray)}\n</style></head><body><main><h1>Changelog</h1>\n<p class=\"meta\">${esc(data.repoName)} &middot; updated automatically by n8n for every new commit</p>${items}</main></body></html>`;\nreturn [{ json: { html } }];"
+      }
+    },
+    {
+      "id": "b4",
+      "name": "Show page",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 2 minutes": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Latest commit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Changelog page": {
+      "main": [
+        [
+          {
+            "node": "Build page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Latest commit": {
+      "main": [
+        [
+          {
+            "node": "New commit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New commit?": {
+      "main": [
+        [
+          {
+            "node": "Write release notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build page": {
+      "main": [
+        [
+          {
+            "node": "Show page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

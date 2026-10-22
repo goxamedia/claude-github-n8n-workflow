@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Links</title>
+  <style>
+    :root {
+      --ink: #111111;
+      --graphite: #262626;
+      --bone: #F3EFE7;
+      --gray: #A7A29A;
+      --lime: #B7F34A;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--ink);
+      color: var(--bone);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+      display: flex;
+      justify-content: center;
+      padding: 48px 16px;
+    }
+    main { width: 100%; max-width: 420px; }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    .bio { color: var(--gray); margin: 0 0 32px; }
+    .card {
+      display: block;
+      background: var(--graphite);
+      color: var(--bone);
+      text-decoration: none;
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 12px;
+      border: 1px solid #333;
+    }
+    .card:hover { border-color: var(--lime); }
+    .card small { display: block; color: var(--gray); margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Your Name</h1>
+    <p class="bio">Creator · I share tools that save you time.</p>
+
+    <a class="card" href="https://example.com/newsletter">Newsletter<small>One useful tool every week</small></a>
+    <a class="card" href="https://example.com/youtube">YouTube<small>Tutorials and walkthroughs</small></a>
+    <a class="card" href="https://example.com/contact">Work with me<small>Projects and collaborations</small></a>
+  </main>
+</body>
+</html>

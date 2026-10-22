@@ -39,6 +39,12 @@ prompts/claude-task.md ──► Claude Code ──► git commit + push ──�
    ```
    Claude Code adds the card, commits and pushes. Within 2 minutes the change appears on your changelog page.
 
+## A real run
+
+Claude made the change in commit [`d6c9760`](https://github.com/goxamedia/claude-github-n8n-workflow/commit/d6c976092e857e15aaae04effe5d5ce5d783e20c) (one line in `site/index.html`): the task in `prompts/claude-task.md`, no other input.
+n8n picked the commit up on its next check, under 2 minutes later, and added it to its changelog page with no one touching anything.
+The next commit puts the page back to three cards so you start from a clean template.
+
 ## How it works
 
 - **Claude Code** runs in headless mode (`claude -p`). It may only read and edit files and use `git status/diff/add/commit/push`.
